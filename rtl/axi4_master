@@ -1,0 +1,16 @@
+module axi4_master (
+
+    input logic clk,
+    input logic rst_n,
+
+    input logic [31:0] src_addr,
+    input logic [31:0] dst_addr,
+    input logic [31:0] length,
+
+    input logic start,
+    output logic done,
+
+    axi_if mem_if
+);
+
+endmodule
