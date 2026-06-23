@@ -12,6 +12,10 @@ module tb_axi_master;
 
     axi_if mem_if();
 
+    //----------------------------------
+    // DUT
+    //----------------------------------
+
     axi4_master dut (
 
         .clk(clk),
@@ -28,6 +32,10 @@ module tb_axi_master;
 
     );
 
+    //----------------------------------
+    // Memory Model
+    //----------------------------------
+
     axi_mem_model mem (
 
         .clk(clk),
@@ -37,10 +45,18 @@ module tb_axi_master;
 
     );
 
+    //----------------------------------
+    // Clock
+    //----------------------------------
+
     initial begin
         clk = 0;
         forever #5 clk = ~clk;
     end
+
+    //----------------------------------
+    // Test
+    //----------------------------------
 
     initial begin
 
@@ -51,42 +67,84 @@ module tb_axi_master;
         src_addr = 32'h100;
         dst_addr = 32'h200;
 
-        length = 1;
+        length = 4;
 
         #20;
         rst_n = 1;
 
         //----------------------------------
-        // preload source memory
+        // Source Data
         //----------------------------------
 
         mem.mem[64] = 32'hDEADBEEF;
+        mem.mem[65] = 32'hAAAAAAAA;
+        mem.mem[66] = 32'h12345678;
+        mem.mem[67] = 32'hCAFEBABE;
 
         //----------------------------------
-        // start transfer
+        // Start DMA
         //----------------------------------
 
         #20;
+
         start = 1;
 
         #10;
+
         start = 0;
 
         //----------------------------------
-        // wait
+        // Wait for completion
         //----------------------------------
 
-        repeat(50) @(posedge clk);
+        wait(done);
 
-        $display("SRC DATA = %h", mem.mem[64]);
-        $display("DST DATA = %h", mem.mem[128]);
+        #20;
 
-        if(mem.mem[128] == 32'hDEADBEEF)
-            $display("PASS");
+        //----------------------------------
+        // Display Results
+        //----------------------------------
+
+        $display("SRC[64]  = %h", mem.mem[64]);
+        $display("SRC[65]  = %h", mem.mem[65]);
+        $display("SRC[66]  = %h", mem.mem[66]);
+        $display("SRC[67]  = %h", mem.mem[67]);
+
+        $display("--------------------------------");
+
+        $display("DST[128] = %h", mem.mem[128]);
+        $display("DST[129] = %h", mem.mem[129]);
+        $display("DST[130] = %h", mem.mem[130]);
+        $display("DST[131] = %h", mem.mem[131]);
+
+        //----------------------------------
+        // Check
+        //----------------------------------
+
+        if(mem.mem[128] == 32'hDEADBEEF &&
+           mem.mem[129] == 32'hAAAAAAAA &&
+           mem.mem[130] == 32'h12345678 &&
+           mem.mem[131] == 32'hCAFEBABE)
+
+            $display("PASS : 4 WORD DMA TRANSFER");
+
         else
-            $display("FAIL");
 
+            $display("FAIL : DATA MISMATCH");
+
+        #20;
         $finish;
+
+    end
+
+    //----------------------------------
+    // Waveforms
+    //----------------------------------
+
+    initial begin
+
+        $dumpfile("axi_master.vcd");
+        $dumpvars(0,tb_axi_master);
 
     end
 
