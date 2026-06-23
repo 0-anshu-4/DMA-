@@ -11,6 +11,174 @@ module axi4_master (
     output logic done,
 
     axi_if mem_if
+
 );
+
+typedef enum logic [2:0] {
+
+    IDLE,
+    READ_REQ,
+    READ_DATA,
+    WRITE_REQ,
+    WRITE_DATA,
+    COMPLETE
+
+} state_t;
+
+state_t curr_state, next_state;
+
+logic [31:0] data_buf;
+
+
+//----------------------------------
+// State Register
+//----------------------------------
+
+always_ff @(posedge clk or negedge rst_n) begin
+
+    if(!rst_n)
+        curr_state <= IDLE;
+    else
+        curr_state <= next_state;
+
+end
+
+
+//----------------------------------
+// Next State Logic
+//----------------------------------
+
+always_comb begin
+
+    next_state = curr_state;
+
+    case(curr_state)
+
+        IDLE: begin
+            if(start)
+                next_state = READ_REQ;
+        end
+
+        READ_REQ: begin
+            if(mem_if.arready)
+                next_state = READ_DATA;
+        end
+
+        READ_DATA: begin
+            if(mem_if.rvalid)
+                next_state = WRITE_REQ;
+        end
+
+        WRITE_REQ: begin
+            if(mem_if.awready)
+                next_state = WRITE_DATA;
+        end
+
+        WRITE_DATA: begin
+            if(mem_if.bvalid)
+                next_state = COMPLETE;
+        end
+
+        COMPLETE: begin
+            next_state = IDLE;
+        end
+
+        default: begin
+            next_state = IDLE;
+        end
+
+    endcase
+
+end
+
+
+//----------------------------------
+// Read Data Capture
+//----------------------------------
+
+always_ff @(posedge clk or negedge rst_n) begin
+
+    if(!rst_n)
+        data_buf <= 32'h0;
+
+    else if(curr_state == READ_DATA && mem_if.rvalid)
+        data_buf <= mem_if.rdata;
+
+end
+
+
+//----------------------------------
+// Output Logic
+//----------------------------------
+
+always_comb begin
+
+    //----------------------------------
+    // Defaults
+    //----------------------------------
+
+    mem_if.arvalid = 0;
+    mem_if.araddr  = 0;
+    mem_if.arlen   = 0;
+
+    mem_if.rready  = 0;
+
+    mem_if.awvalid = 0;
+    mem_if.awaddr  = 0;
+    mem_if.awlen   = 0;
+
+    mem_if.wvalid  = 0;
+    mem_if.wdata   = 0;
+    mem_if.wlast   = 0;
+
+    mem_if.bready  = 0;
+
+    done = 0;
+
+    //----------------------------------
+    // State Actions
+    //----------------------------------
+
+    case(curr_state)
+
+        READ_REQ: begin
+
+            mem_if.arvalid = 1;
+            mem_if.araddr  = src_addr;
+
+        end
+
+        READ_DATA: begin
+
+            mem_if.rready = 1;
+
+        end
+
+        WRITE_REQ: begin
+
+            mem_if.awvalid = 1;
+            mem_if.awaddr  = dst_addr;
+
+        end
+
+        WRITE_DATA: begin
+
+            mem_if.wvalid = 1;
+            mem_if.wdata  = data_buf;
+            mem_if.wlast  = 1;
+
+            mem_if.bready = 1;
+
+        end
+
+        COMPLETE: begin
+
+            done = 1;
+
+        end
+
+    endcase
+
+end
 
 endmodule
