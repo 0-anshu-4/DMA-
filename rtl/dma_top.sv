@@ -54,6 +54,17 @@ module dma_top #(
     logic [NUM_CH-1:0] fsm_start;
     logic [NUM_CH-1:0] fsm_done;
 
+        //------------------------------------
+    // MUX -> AXI Master
+    //------------------------------------
+
+    logic [31:0] axi_src_addr;
+    logic [31:0] axi_dst_addr;
+    logic [31:0] axi_length;
+
+    logic        axi_start;
+    logic        axi_done;
+
     // ------------------------------------
     // AXI Lite Slave
     // ------------------------------------
