@@ -166,6 +166,29 @@ module dma_top #(
         .ch_grant(ch_grant)
     );
 
+    //------------------------------------
+// Channel MUX
+//------------------------------------
+
+    channel_mux #(
+        .NUM_CH(NUM_CH)
+    ) u_channel_mux (
+
+        .fsm_src_addr(fsm_src_addr),
+        .fsm_dst_addr(fsm_dst_addr),
+        .fsm_length(fsm_length),
+
+        .fsm_start(fsm_start),
+        .ch_grant(ch_grant),
+
+        .axi_src_addr(axi_src_addr),
+        .axi_dst_addr(axi_dst_addr),
+        .axi_length(axi_length),
+
+        .axi_start(axi_start)
+
+    );
+
     // ------------------------------------
     // AXI Master
     // ------------------------------------
@@ -175,12 +198,12 @@ module dma_top #(
         .clk(clk),
         .rst_n(rst_n),
 
-        .src_addr(fsm_src_addr[0]),
-        .dst_addr(fsm_dst_addr[0]),
-        .length(fsm_length[0]),
+        .src_addr(axi_src_addr),
+        .dst_addr(axi_dst_addr),
+        .length(axi_length),
 
-        .start(fsm_start[0]),
-        .done(fsm_done[0]),
+        .start(axi_start),
+        .done(axi_done),
 
         .mem_if(mem_if)
     );

@@ -1,158 +1,163 @@
-# DMA Controller (SystemVerilog)
+# Configurable Multi-Channel DMA Controller
 
 ## Overview
 
-This project implements a multi-channel Direct Memory Access (DMA) Controller in SystemVerilog. The DMA is designed to transfer data between memory locations without continuous CPU intervention. The design follows a modular RTL architecture and includes verification testbenches for individual components and subsystem integration.
+This project implements a configurable multi-channel Direct Memory Access (DMA) Controller in SystemVerilog. The DMA allows data transfer between memory locations without continuous CPU intervention. It is designed around an AXI4-Lite interface for configuration and an AXI4 Master interface for memory transactions.
 
----
-
-## Architecture
-
-CPU (AXI4-Lite)
-↓
-AXI4-Lite Slave
-↓
-Register File
-↓
-Channel FSMs (4 Channels)
-↓
-Round Robin Arbiter
-↓
-AXI4 Master
-↓
-Memory
+The project is being developed from scratch as a learning-oriented RTL design and verification project with modular architecture and independent verification for each hardware block.
 
 ---
 
 ## Features
 
-* 4 DMA Channels
+* 4 Independent DMA Channels
 * AXI4-Lite Configuration Interface
-* Register-Based DMA Programming
-* Channel FSM Based Transfer Control
-* Round Robin Arbitration
+* AXI4 Memory Interface
+* Channel Register File
+* Per-Channel DMA Finite State Machines (FSM)
+* Round-Robin Arbiter
+* Shared AXI4 Master
+* Channel Multiplexer for AXI Master Selection
+* AXI Memory Model for Simulation
 * Modular RTL Design
-* Component-Level Verification
-* Multi-Channel Integration Testing
+* Independent Module Verification Testbenches
 
 ---
 
-## Implemented Modules
+## Architecture
 
-### RTL
+```
+                   CPU
+                    │
+                    ▼
+            AXI4-Lite Slave
+                    │
+                    ▼
+              Register File
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+      FSM0        FSM1        FSM2 ... FSM3
+        │           │           │
+        └───────────┼───────────┘
+                    ▼
+          Round Robin Arbiter
+                    │
+                    ▼
+              Channel MUX
+                    │
+                    ▼
+              AXI4 Master
+                    │
+                    ▼
+               AXI Memory
+```
 
-* `axil_if.sv`
+---
 
-  * AXI4-Lite interface definition
+## Project Structure
 
-* `axi_if.sv`
+```
+DMA Controller/
 
-  * AXI4 memory interface definition
+├── rtl/
+│   ├── dma_top.sv
+│   ├── reg_file.sv
+│   ├── ch_fsm.sv
+│   ├── arbiter.sv
+│   ├── channel_mux.sv
+│   ├── axi4_master.sv
+│   ├── axi4_lite_slave.sv
+│   └── axi_mem_model.sv
+│
+├── interfaces/
+│   ├── axi_if.sv
+│   └── axil_if.sv
+│
+├── testbenches/
+│   ├── tb_reg_file.sv
+│   ├── tb_axi4_master.sv
+│   ├── tb_axi4_lite_slave.sv
+│   ├── tb_arbiter.sv
+│   └── ...
+│
+└── README.md
+```
 
-* `axi4_lite_slave.sv`
+---
 
-  * Configuration interface skeleton
+## Modules
 
-* `reg_file.sv`
+### Register File
 
-  * DMA configuration registers
-  * Stores source address, destination address, transfer length, enable and start bits
-  * Provides busy and done status readback
+Stores source address, destination address, transfer length, control and status registers for all DMA channels.
 
-* `ch_fsm.sv`
+### AXI4-Lite Slave
 
-  * DMA channel finite state machine
-  * Handles request, grant, transfer start and completion flow
+Receives CPU read/write requests and converts them into register file accesses.
 
-* `arbiter.sv`
+### Channel FSM
 
-  * Round Robin Arbiter
-  * Fairly schedules requests from multiple DMA channels
+Controls the transfer sequence for each DMA channel.
 
-* `dma_top.sv`
+### Round Robin Arbiter
 
-  * Top-level integration module
+Selects one requesting DMA channel at a time to access the shared AXI Master.
 
-* `axi4_master.sv`
+### Channel MUX
 
-  * Under Development
+Routes the granted channel's transfer information to the AXI Master.
+
+### AXI4 Master
+
+Performs memory read and write transactions through the AXI4 interface.
+
+### AXI Memory Model
+
+Simulation memory used for functional verification.
 
 ---
 
 ## Verification
 
-### Testbenches
+Individual testbenches have been developed for:
 
-* `reg_testbench.sv`
+* Register File
+* Round Robin Arbiter
+* AXI4 Master
+* AXI4-Lite Slave
+* Partial DMA Integration
 
-  * Register file verification
+Current verification includes:
 
-* `tb_ch_fsm.sv`
-
-  * FSM verification
-
-* `tb_arbiter.sv`
-
-  * Round Robin arbiter verification
-
-* `dma_partial.sv`
-
-  * Multi-channel integration test
-  * Verifies arbitration and FSM interaction
+* Register read/write verification
+* AXI4-Lite read and write transactions
+* Multi-word memory transfers
+* Round-robin arbitration
+* AXI Master memory copy operation
 
 ---
 
-## Verification Results
+## Current Status
 
-### Register File
+### Completed
 
-Verified:
+* RTL architecture
+* Register File
+* Channel FSM
+* Arbiter
+* AXI4 Master
+* AXI4-Lite Slave
+* Channel Multiplexer
+* AXI Memory Model
+* Individual module verification
 
-* Register writes
-* Register reads
-* Control register functionality
-* Busy status readback
-* Done status readback
+### In Progress
 
-### Channel FSM
-
-Verified:
-
-* IDLE → WAIT_GRANT
-* WAIT_GRANT → START_TRANSFER
-* START_TRANSFER → WAIT_DONE
-* WAIT_DONE → COMPLETE
-* COMPLETE → IDLE
-
-### Arbiter
-
-Verified:
-
-* Single-channel requests
-* Multi-channel requests
-* Fair round-robin grant rotation
-
-### Integration
-
-Verified:
-
-* Multiple channels requesting simultaneously
-* Arbitration between competing channels
-* Grant propagation to FSMs
-* Transfer start signaling
-
----
-
-## Current Progress
-
-* [x] AXI Interfaces
-* [x] Register File
-* [x] Channel FSM
-* [x] Round Robin Arbiter
-* [x] Multi-Channel Integration
-* [ ] AXI4 Master
-* [ ] Full DMA Data Transfer
-* [ ] UVM Verification Environment
+* Full DMA top-level integration
+* Multi-channel shared AXI Master operation
+* End-to-end DMA transfer verification
+* UVM-based verification environment
 
 ---
 
@@ -161,6 +166,7 @@ Verified:
 * SystemVerilog
 * Cadence Xcelium
 * EDA Playground
+* Visual Studio Code
 * Git
 * GitHub
 
@@ -168,16 +174,20 @@ Verified:
 
 ## Future Work
 
-* Complete AXI4 Master implementation
-* Support burst transfers
-* Integrate complete DMA datapath
-* Develop UVM verification environment
-* Add functional coverage and assertions
+* Complete multi-channel DMA operation
+* Burst transfer support
+* Interrupt generation
+* Error handling
+* UVM Verification Environment
+* Functional Coverage
+* Assertion-Based Verification
+* FPGA Implementation
+* Synthesis using OpenLane
 
 ---
 
 ## Author
 
 Anshu
-Electronics and Communication Engineering (ECE)
-Thapar Institute of Engineering and Technology
+
+ECE | RTL Design & Verification | VLSI Enthusiast
