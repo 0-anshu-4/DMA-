@@ -208,4 +208,33 @@ module dma_top #(
         .mem_if(mem_if)
     );
 
+
+    //------------------------------------
+// Route AXI done to granted FSM
+//------------------------------------
+
+always_comb begin
+
+    fsm_done = '0;
+
+    if (axi_done) begin
+
+        if (ch_grant[0])
+            fsm_done[0] = 1'b1;
+
+        else if (ch_grant[1])
+            fsm_done[1] = 1'b1;
+
+        else if (ch_grant[2])
+            fsm_done[2] = 1'b1;
+
+        else if (ch_grant[3])
+            fsm_done[3] = 1'b1;
+
+    end
+
+end
+
+endmodule
+
 endmodule
