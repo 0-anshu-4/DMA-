@@ -186,6 +186,35 @@ Current verification includes:
 
 ---
 
+
+## Mistake Log – Shared AXI Master Completion Signal
+
+### Issue
+
+After introducing a shared AXI Master through a channel multiplexer, I connected the request path (`fsm_src_addr`, `fsm_dst_addr`, `fsm_length`, `fsm_start`) from the granted channel to the AXI Master but overlooked the completion (`done`) return path.
+
+### Root Cause
+
+Originally, the AXI Master was connected only to Channel 0:
+
+```systemverilog
+.done(fsm_done[0])
+```
+
+After adding the channel multiplexer, any of the four channel FSMs could initiate a transfer, but the AXI Master's `done` signal was no longer routed back to the correct FSM.
+
+As a result, a channel could successfully complete the memory transfer, but its FSM would remain in the `WAIT_DONE` state because `fsm_done` was never asserted.
+
+### Solution
+
+Added logic in `dma_top` to decode the granted channel and route the AXI Master's `done` signal back to the corresponding `fsm_done[i]`.
+
+This ensures that only the FSM owning the current transfer receives the completion signal and transitions from `WAIT_DONE` to `COMPLETE`.
+
+### Lesson Learned
+
+When multiple modules share a hardware resource, both the **request path** and the **response/completion path** must be correctly routed. Designing only the forward data path is not sufficient—the return/control path is equally important for correct system behavior.
+
 ## Author
 
 Anshu
