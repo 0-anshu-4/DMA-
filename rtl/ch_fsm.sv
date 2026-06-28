@@ -93,12 +93,14 @@ always_comb begin
         end
 
         START_TRANSFER: begin
+            ch_req    = 1;   // FIX: keep holding the request
             busy      = 1;
             fsm_start = 1;
         end
 
         WAIT_DONE: begin
-            busy = 1;
+            ch_req = 1;      // FIX: hold request until transfer truly completes
+            busy   = 1;
         end
 
         COMPLETE: begin
@@ -108,6 +110,5 @@ always_comb begin
     endcase
 
 end
-
 
 endmodule

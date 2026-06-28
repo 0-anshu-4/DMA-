@@ -29,7 +29,9 @@ logic [31:0] data_buf;
 
 logic [31:0] src_addr_curr;
 logic [31:0] dst_addr_curr;
+logic [31:0] length_curr;
 logic [31:0] word_count;
+  
 
 
 //----------------------------------
@@ -56,7 +58,9 @@ always_ff @(posedge clk or negedge rst_n) begin
 
         src_addr_curr <= 0;
         dst_addr_curr <= 0;
+         length_curr   <= 0;
         word_count    <= 0;
+        
 
     end
 
@@ -66,14 +70,15 @@ always_ff @(posedge clk or negedge rst_n) begin
         // Load at start
         //----------------------------------
 
-        if(curr_state == IDLE && start) begin
+          if(curr_state == IDLE && start) begin
 
-            src_addr_curr <= src_addr;
-            dst_addr_curr <= dst_addr;
+          src_addr_curr <= src_addr;
+          dst_addr_curr <= dst_addr;
+          length_curr   <= length;
 
-            word_count <= 0;
+          word_count    <= 0;
 
-        end
+      end
 
         //----------------------------------
         // Update after successful write
@@ -151,8 +156,10 @@ always_comb begin
         WRITE_DATA: begin
 
             if(mem_if.bvalid) begin
+               $display("WRITE_DATA wc=%0d len=%0d",
+                  word_count, length_curr);
 
-                if(word_count == length - 1)
+               if(word_count == length_curr - 1)
                     next_state = COMPLETE;
                 else
                     next_state = READ_REQ;
@@ -244,8 +251,9 @@ always_comb begin
         end
 
         COMPLETE: begin
-
+              
             done = 1;
+          $display(">>> AXI COMPLETE at %0t", $time);
 
         end
 

@@ -35,6 +35,7 @@ module dma_top #(
 
     logic [NUM_CH-1:0] busy;
     logic [NUM_CH-1:0] done;
+  
 
     // ------------------------------------
     // FSM <-> Arbiter
@@ -53,6 +54,7 @@ module dma_top #(
 
     logic [NUM_CH-1:0] fsm_start;
     logic [NUM_CH-1:0] fsm_done;
+    logic [$clog2(NUM_CH)-1:0] active_ch;
 
     //------------------------------------
     // MUX -> AXI Master
@@ -209,21 +211,44 @@ module dma_top #(
         .mem_if(mem_if)
     );
 
+  
+      //------------------------------------
+    // Remember Active Channel
+    //------------------------------------
+
+    always_ff @(posedge clk or negedge rst_n) begin
+
+        if(!rst_n)
+
+            active_ch <= '0;
+
+        else begin
+
+            for(int i = 0; i < NUM_CH; i++) begin
+
+                if(ch_grant[i])
+                    active_ch <= i;
+
+            end
+
+        end
+
+    end
     //------------------------------------
     // Route AXI done to granted FSM
     //------------------------------------
 
-    always_comb begin
+      //------------------------------------
+      // Route AXI done to Active FSM
+      //------------------------------------
 
-        fsm_done = '0;
+      always_comb begin
 
-        if (axi_done) begin
-            for (int i = 0; i < NUM_CH; i++) begin
-                if (ch_grant[i])
-                    fsm_done[i] = 1'b1;
-            end
-        end
+          fsm_done = '0;
 
-    end
+          if(axi_done)
 
+              fsm_done[active_ch] = 1'b1;
+
+      end
 endmodule
