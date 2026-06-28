@@ -14,21 +14,21 @@ module dma_top #(
     // AXI-Lite Slave <-> Reg File
     // ------------------------------------
 
-    logic [31:0] wr_addr;
-    logic [31:0] wr_data;
-    logic        wr_en;
-    
-    logic rd_en;
-    logic [31:0] rd_addr;
-    logic [31:0] rd_data;
+    logic [ADDR_WIDTH-1:0] wr_addr;
+    logic [DATA_WIDTH-1:0] wr_data;
+    logic                  wr_en;
+
+    logic [ADDR_WIDTH-1:0] rd_addr;
+    logic [DATA_WIDTH-1:0] rd_data;
+    logic                  rd_en;
 
     // ------------------------------------
     // Reg File <-> Channel FSM
     // ------------------------------------
 
-    logic [31:0] src_addr [NUM_CH];
-    logic [31:0] dst_addr [NUM_CH];
-    logic [31:0] length   [NUM_CH];
+    logic [ADDR_WIDTH-1:0] src_addr [NUM_CH];
+    logic [ADDR_WIDTH-1:0] dst_addr [NUM_CH];
+    logic [DATA_WIDTH-1:0] length   [NUM_CH];
 
     logic [NUM_CH-1:0] enable;
     logic [NUM_CH-1:0] start;
@@ -47,38 +47,41 @@ module dma_top #(
     // FSM -> AXI Master
     // ------------------------------------
 
-    logic [31:0] fsm_src_addr [NUM_CH];
-    logic [31:0] fsm_dst_addr [NUM_CH];
-    logic [31:0] fsm_length   [NUM_CH];
+    logic [ADDR_WIDTH-1:0] fsm_src_addr [NUM_CH];
+    logic [ADDR_WIDTH-1:0] fsm_dst_addr [NUM_CH];
+    logic [DATA_WIDTH-1:0] fsm_length   [NUM_CH];
 
     logic [NUM_CH-1:0] fsm_start;
     logic [NUM_CH-1:0] fsm_done;
 
-        //------------------------------------
+    //------------------------------------
     // MUX -> AXI Master
     //------------------------------------
 
-    logic [31:0] axi_src_addr;
-    logic [31:0] axi_dst_addr;
-    logic [31:0] axi_length;
+    logic [ADDR_WIDTH-1:0] axi_src_addr;
+    logic [ADDR_WIDTH-1:0] axi_dst_addr;
+    logic [DATA_WIDTH-1:0] axi_length;
 
-    logic        axi_start;
-    logic        axi_done;
+    logic axi_start;
+    logic axi_done;
 
     // ------------------------------------
     // AXI Lite Slave
     // ------------------------------------
 
-    axi4_lite_slave u_axil_slave (
+    axi4_lite_slave #(
+        .DATA_WIDTH(DATA_WIDTH),
+        .ADDR_WIDTH(ADDR_WIDTH)
+    ) u_axil_slave (
 
         .cfg_if (cfg_if),
 
         .wr_addr(wr_addr),
         .wr_data(wr_data),
         .wr_en  (wr_en),
-         
-      .rd_en(rd_en),
+
         .rd_addr(rd_addr),
+        .rd_en  (rd_en),
         .rd_data(rd_data)
     );
 
@@ -99,8 +102,7 @@ module dma_top #(
 
         .rd_addr(rd_addr),
         .rd_data(rd_data),
-      .rd_en(rd_en),
-      
+        .rd_en(rd_en),
 
         .src_addr(src_addr),
         .dst_addr(dst_addr),
@@ -120,7 +122,7 @@ module dma_top #(
     genvar i;
 
     generate
-        for(i=0;i<NUM_CH;i++) begin : CH_FSM_GEN
+        for(i = 0; i < NUM_CH; i++) begin : CH_FSM_GEN
 
             ch_fsm u_ch_fsm (
 
@@ -166,9 +168,9 @@ module dma_top #(
         .ch_grant(ch_grant)
     );
 
-    //------------------------------------
-// Channel MUX
-//------------------------------------
+    // ------------------------------------
+    // Channel MUX
+    // ------------------------------------
 
     channel_mux #(
         .NUM_CH(NUM_CH)
@@ -186,7 +188,6 @@ module dma_top #(
         .axi_length(axi_length),
 
         .axi_start(axi_start)
-
     );
 
     // ------------------------------------
@@ -208,33 +209,21 @@ module dma_top #(
         .mem_if(mem_if)
     );
 
-
     //------------------------------------
-// Route AXI done to granted FSM
-//------------------------------------
+    // Route AXI done to granted FSM
+    //------------------------------------
 
-always_comb begin
+    always_comb begin
 
-    fsm_done = '0;
+        fsm_done = '0;
 
-    if (axi_done) begin
-
-        if (ch_grant[0])
-            fsm_done[0] = 1'b1;
-
-        else if (ch_grant[1])
-            fsm_done[1] = 1'b1;
-
-        else if (ch_grant[2])
-            fsm_done[2] = 1'b1;
-
-        else if (ch_grant[3])
-            fsm_done[3] = 1'b1;
+        if (axi_done) begin
+            for (int i = 0; i < NUM_CH; i++) begin
+                if (ch_grant[i])
+                    fsm_done[i] = 1'b1;
+            end
+        end
 
     end
-
-end
-
-endmodule
 
 endmodule

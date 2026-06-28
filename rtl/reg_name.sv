@@ -26,33 +26,46 @@ module reg_file #(
 
 );
 
-    integer i;
+integer i;
 
-    //----------------------------------
-    // Write Logic
-    //----------------------------------
+//----------------------------------
+// Write Logic
+//----------------------------------
 
-    always_ff @(posedge clk or negedge rst_n) begin
+always_ff @(posedge clk or negedge rst_n) begin
 
-        if(!rst_n) begin
+    if(!rst_n) begin
 
-            for(i=0;i<NUM_CH;i++) begin
-                src_addr[i] <= 32'h0;
-                dst_addr[i] <= 32'h0;
-                length[i]   <= 32'h0;
-                enable[i]   <= 1'b0;
-                start[i]    <= 1'b0;
-            end
-
+        for(i=0;i<NUM_CH;i++) begin
+            src_addr[i] <= 32'h0;
+            dst_addr[i] <= 32'h0;
+            length[i]   <= 32'h0;
+            enable[i]   <= 1'b0;
+            start[i]    <= 1'b0;
         end
 
-        else if(wr_en) begin
+    end
+
+    else begin
+
+        //----------------------------------
+        // Self-clear start bits
+        //----------------------------------
+
+        for(i=0;i<NUM_CH;i++)
+            start[i] <= 1'b0;
+
+        //----------------------------------
+        // Register Writes
+        //----------------------------------
+
+        if(wr_en) begin
 
             case(wr_addr)
 
-                // -------------------
+                //-----------------------
                 // Channel 0
-                // -------------------
+                //-----------------------
 
                 32'h00: src_addr[0] <= wr_data;
                 32'h04: dst_addr[0] <= wr_data;
@@ -63,9 +76,9 @@ module reg_file #(
                     start[0]  <= wr_data[1];
                 end
 
-                // -------------------
+                //-----------------------
                 // Channel 1
-                // -------------------
+                //-----------------------
 
                 32'h10: src_addr[1] <= wr_data;
                 32'h14: dst_addr[1] <= wr_data;
@@ -76,9 +89,9 @@ module reg_file #(
                     start[1]  <= wr_data[1];
                 end
 
-                // -------------------
+                //-----------------------
                 // Channel 2
-                // -------------------
+                //-----------------------
 
                 32'h20: src_addr[2] <= wr_data;
                 32'h24: dst_addr[2] <= wr_data;
@@ -89,9 +102,9 @@ module reg_file #(
                     start[2]  <= wr_data[1];
                 end
 
-                // -------------------
+                //-----------------------
                 // Channel 3
-                // -------------------
+                //-----------------------
 
                 32'h30: src_addr[3] <= wr_data;
                 32'h34: dst_addr[3] <= wr_data;
@@ -108,67 +121,49 @@ module reg_file #(
 
     end
 
-    //----------------------------------
-    // Read Logic
-    //----------------------------------
+end
 
-    always_comb begin
+//----------------------------------
+// Read Logic
+//----------------------------------
 
-        rd_data = 32'h0;
+always_comb begin
 
-        if(rd_en) begin
+    rd_data = 32'h0;
 
-            case(rd_addr)
+    if(rd_en) begin
 
-                // -------------------
-                // Channel 0
-                // -------------------
+        case(rd_addr)
 
-                32'h00: rd_data = src_addr[0];
-                32'h04: rd_data = dst_addr[0];
-                32'h08: rd_data = length[0];
-                32'h0C: rd_data = {30'b0,start[0],enable[0]};
+            32'h00: rd_data = src_addr[0];
+            32'h04: rd_data = dst_addr[0];
+            32'h08: rd_data = length[0];
+            32'h0C: rd_data = {30'b0,start[0],enable[0]};
 
-                // -------------------
-                // Channel 1
-                // -------------------
+            32'h10: rd_data = src_addr[1];
+            32'h14: rd_data = dst_addr[1];
+            32'h18: rd_data = length[1];
+            32'h1C: rd_data = {30'b0,start[1],enable[1]};
 
-                32'h10: rd_data = src_addr[1];
-                32'h14: rd_data = dst_addr[1];
-                32'h18: rd_data = length[1];
-                32'h1C: rd_data = {30'b0,start[1],enable[1]};
+            32'h20: rd_data = src_addr[2];
+            32'h24: rd_data = dst_addr[2];
+            32'h28: rd_data = length[2];
+            32'h2C: rd_data = {30'b0,start[2],enable[2]};
 
-                // -------------------
-                // Channel 2
-                // -------------------
+            32'h30: rd_data = src_addr[3];
+            32'h34: rd_data = dst_addr[3];
+            32'h38: rd_data = length[3];
+            32'h3C: rd_data = {30'b0,start[3],enable[3]};
 
-                32'h20: rd_data = src_addr[2];
-                32'h24: rd_data = dst_addr[2];
-                32'h28: rd_data = length[2];
-                32'h2C: rd_data = {30'b0,start[2],enable[2]};
+            32'h40: rd_data = {28'b0,busy};
+            32'h44: rd_data = {28'b0,done};
 
-                // -------------------
-                // Channel 3
-                // -------------------
+            default: rd_data = 32'h0;
 
-                32'h30: rd_data = src_addr[3];
-                32'h34: rd_data = dst_addr[3];
-                32'h38: rd_data = length[3];
-                32'h3C: rd_data = {30'b0,start[3],enable[3]};
-
-                // -------------------
-                // Status Registers
-                // -------------------
-
-                32'h40: rd_data = {28'b0,busy};
-                32'h44: rd_data = {28'b0,done};
-
-                default: rd_data = 32'h0;
-
-            endcase
-
-        end
+        endcase
 
     end
+
+end
 
 endmodule

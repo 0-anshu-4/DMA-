@@ -183,4 +183,4 @@
 
 // endmodule
 
-// // endmodule
+/I verified the interaction between multiple Channel FSMs and the round-robin arbiter before integrating the rest of the DMA
