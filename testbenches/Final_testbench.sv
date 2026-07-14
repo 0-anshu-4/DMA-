@@ -20,12 +20,12 @@ module tb_dma_top;
     axil_if #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH)
-    ) cfg_if();
+    ) cfg_if(.clk(clk),.rst_n(rst_n));
 
     axi_if #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH)
-    ) mem_if();
+    ) mem_if(.clk(clk),.rst_n(rst_n));
 
     //----------------------------------
     // DUT
