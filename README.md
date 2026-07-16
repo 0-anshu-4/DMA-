@@ -215,7 +215,14 @@ This ensures that only the FSM owning the current transfer receives the completi
 
 When multiple modules share a hardware resource, both the **request path** and the **response/completion path** must be correctly routed. Designing only the forward data path is not sufficient—the return/control path is equally important for correct system behavior.
 
+Date: 14 July,2026 
+• Added `clk` and `rst_n` ports to `axil_if` and `axi_if`.
+• Updated interface instantiations in the UVM testbench.
+• Reason: The UVM environment uses a virtual interface (`vif`) and synchronizes transactions using `@(posedge vif.clk)`. Since the original interfaces did not contain clock/reset, Cadence reported elaboration errors. Adding these ports enabled proper synchronization between the UVM driver/monitor and the DUT without changing the DMA RTL behavior.
+
+EDA playground link- working of rtl and testbenchh : https://www.edaplayground.com/x/Dwaa
 ## Author
+
 
 Anshu
 
