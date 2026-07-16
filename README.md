@@ -1,229 +1,336 @@
 # Configurable Multi-Channel DMA Controller
-
-## Overview
-
-This project implements a configurable multi-channel Direct Memory Access (DMA) Controller in SystemVerilog. The DMA allows data transfer between memory locations without continuous CPU intervention. It is designed around an AXI4-Lite interface for configuration and an AXI4 Master interface for memory transactions.
-
-The project is being developed from scratch as a learning-oriented RTL design and verification project with modular architecture and independent verification for each hardware block.
+## RTL Design & UVM Verification | SystemVerilog, UVM 1.2, Cadence Xcelium
 
 ---
 
-## Features
+## Overview
 
-* 4 Independent DMA Channels
-* AXI4-Lite Configuration Interface
-* AXI4 Memory Interface
-* Channel Register File
-* Per-Channel DMA Finite State Machines (FSM)
-* Round-Robin Arbiter
-* Shared AXI4 Master
-* Channel Multiplexer for AXI Master Selection
-* AXI Memory Model for Simulation
-* Modular RTL Design
-* Independent Module Verification Testbenches
+A 4-channel configurable DMA Controller designed and verified from scratch in
+SystemVerilog. The DMA moves data between memory locations without CPU
+intervention, configured via an AXI4-Lite slave interface and executing
+transfers over an AXI4 master interface. A round-robin arbiter fairly schedules
+access to the shared AXI4 master across all 4 channels.
 
 ---
 
 ## Architecture
 
-```
-                   CPU
-                    │
-                    ▼
-            AXI4-Lite Slave
-                    │
-                    ▼
-              Register File
-                    │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-      FSM0        FSM1        FSM2 ... FSM3
-        │           │           │
-        └───────────┼───────────┘
-                    ▼
-          Round Robin Arbiter
-                    │
-                    ▼
-              Channel MUX
-                    │
-                    ▼
-              AXI4 Master
-                    │
-                    ▼
-               AXI Memory
-```
+                +----------------+
+                |      CPU       |
+                +----------------+
+                        |
+                  AXI4-Lite
+                        |
+        +--------------------------------+
+        |          DMA Controller         |
+        |                                |
+        |  +--------------------------+  |
+        |  |      AXI4-Lite Slave     |  |
+        |  +--------------------------+  |
+        |               |                |
+        |        +--------------+        |
+        |        | Register File|        |
+        |        +--------------+        |
+        |         |  |  |  |             |
+        |   +-----+--+--+--+-----+       |
+        |   | CH0 | CH1 | CH2 | CH3|      |
+        |   | FSM | FSM | FSM | FSM |      |
+        |   +-----+--+--+--+-----+       |
+        |              |                 |
+        |        Round-Robin Arbiter     |
+        |              |                 |
+        |         Channel MUX            |
+        |              |                 |
+        |         AXI4 Master            |
+        +--------------|-----------------+
+                       |
+                    AXI4 Bus
+                       |
+                 +-------------+
+                 |   Memory    |
+                 +-------------+
+
+---
+
+## Features
+
+- 4 independent DMA channels with parameterizable data/address width
+- AXI4-Lite slave interface for CPU configuration (src, dst, length, control)
+- AXI4 full master interface for multi-word burst data movement
+- Round-robin arbiter with sticky grant — no mid-burst preemption
+- Per-channel FSM: IDLE → LOAD → WAIT_GRANT → START_TRANSFER → WAIT_DONE → COMPLETE
+- Channel MUX routing granted channel's addresses to shared AXI master
+- Done signal correctly demuxed back to the completing channel's FSM
 
 ---
 
 ## Project Structure
 
-```
-DMA Controller/
-
+dma_controller/
 ├── rtl/
 │   ├── dma_top.sv
 │   ├── reg_file.sv
 │   ├── ch_fsm.sv
 │   ├── arbiter.sv
 │   ├── channel_mux.sv
-│   ├── axi4_master.sv
 │   ├── axi4_lite_slave.sv
-│   └── axi_mem_model.sv
-│
+│   └── axi4_master.sv
 ├── interfaces/
-│   ├── axi_if.sv
-│   └── axil_if.sv
-│
-├── testbenches/
-│   ├── tb_reg_file.sv
-│   ├── tb_axi4_master.sv
-│   ├── tb_axi4_lite_slave.sv
-│   ├── tb_arbiter.sv
-│   └── ...
-│
-└── README.md
-```
+│   ├── axil_if.sv
+│   └── axi_if.sv
+├── tb/
+│   ├── tb_dma_top.sv
+│   └── axi_mem_model.sv
+├── uvm/
+│   └── tb_uvm_top.sv
+└── docs/
+└── block_diagram.png
 
 ---
 
-## Modules
+## Verification Results
 
-### Register File
+| Test | Transfers | Result | Coverage |
+|------|-----------|--------|----------|
+| Single channel directed | 1 | PASS | — |
+| 2-channel concurrent directed | 2 | PASS | — |
+| 4-channel simultaneous directed | 4 | PASS | — |
+| UVM random regression | 20 | PASS: 20 FAIL: 0 | 91.7% |
 
-Stores source address, destination address, transfer length, control and status registers for all DMA channels.
-
-### AXI4-Lite Slave
-
-Receives CPU read/write requests and converts them into register file accesses.
-
-### Channel FSM
-
-Controls the transfer sequence for each DMA channel.
-
-### Round Robin Arbiter
-
-Selects one requesting DMA channel at a time to access the shared AXI Master.
-
-### Channel MUX
-
-Routes the granted channel's transfer information to the AXI Master.
-
-### AXI4 Master
-
-Performs memory read and write transactions through the AXI4 interface.
-
-### AXI Memory Model
-
-Simulation memory used for functional verification.
+**UVM Environment:**
+- Constrained-random stimulus via `dma_seq_item` (src, dst, length, channel)
+- Driver performs AXI4-Lite register writes per transaction
+- Monitor captures all 4 register writes per channel, reconstructs full transaction
+- Scoreboard checks every observed transaction, reports PASS/FAIL per transfer
+- Functional coverage: channel selection × transfer length cross coverage, 91.7%
+  across 12 bins (4 channels × 3 length buckets)
 
 ---
 
-## Verification
+## RTL Bugs Found and Fixed
 
-Individual testbenches have been developed for:
+### Bug 1 — Dead-ended `done` signal
 
-* Register File
-* Round Robin Arbiter
-* AXI4 Master
-* AXI4-Lite Slave
-* Partial DMA Integration
+**File:** `dma_top.sv`, `channel_mux.sv`
 
-Current verification includes:
+**Symptom:** Transfers appeared to complete at the AXI master level but channel
+FSMs never left the WAIT_DONE state. The system would stall indefinitely after
+the first transfer.
 
-* Register read/write verification
-* AXI4-Lite read and write transactions
-* Multi-word memory transfers
-* Round-robin arbitration
-* AXI Master memory copy operation
+**Root cause:** The `axi4_master`'s `done` output was connected to a local
+signal `axi_done` in `dma_top`, but that signal was never routed back through
+`channel_mux` to the FSMs' `fsm_done` inputs. The `channel_mux` only routed
+data in one direction (FSM → AXI master) and had no return path for completion.
 
----
-
-## Current Status
-
-### Completed
-
-* RTL architecture
-* Register File
-* Channel FSM
-* Arbiter
-* AXI4 Master
-* AXI4-Lite Slave
-* Channel Multiplexer
-* AXI Memory Model
-* Individual module verification
-
-### In Progress
-
-* Full DMA top-level integration
-* Multi-channel shared AXI Master operation
-* End-to-end DMA transfer verification
-* UVM-based verification environment
+**Fix:** Added `axi_done` as an input to `channel_mux` and added a demux
+logic block that routes `axi_done` back to `fsm_done[active_ch]` — only the
+channel currently holding the grant receives the completion signal.
 
 ---
 
-## Tools Used
+### Bug 2 — Arbiter grant reassigned mid-burst (critical)
 
-* SystemVerilog
-* Cadence Xcelium
-* EDA Playground
-* Visual Studio Code
-* Git
-* GitHub
+**File:** `arbiter.sv`, `ch_fsm.sv`
+
+**Symptom:** With two or more channels started simultaneously, data was
+corrupted at destination addresses. Memory contents at dst did not match
+expected src data. The bug was non-deterministic — sometimes one channel
+would get the other channel's data.
+
+**Root cause:** Two separate issues compounding each other:
+
+1. **`ch_req` deasserted too early:** The channel FSM only held `ch_req`
+   high while in `WAIT_GRANT` and `START_TRANSFER` states, then dropped it
+   in `WAIT_DONE`. The AXI master takes multiple cycles to complete a
+   multi-word transfer. The moment `ch_req` dropped, the arbiter treated
+   the channel as no longer needing the bus.
+
+2. **Non-sticky arbiter:** The round-robin arbiter recalculated a fresh
+   grant every single clock cycle. With channel 0's `ch_req` dropped
+   while the AXI master was still mid-burst for channel 0, and channel 1
+   still requesting, the arbiter granted channel 1. The `active_ch`
+   tracking then pointed to channel 1, so when the AXI master eventually
+   asserted `done`, the completion signal was routed to channel 1 instead
+   of channel 0.
+
+**Fix:**
+- `ch_fsm.sv`: Held `ch_req = 1` through both `START_TRANSFER` and
+  `WAIT_DONE` states. A channel must assert its request for the full
+  duration it occupies the shared resource.
+- `arbiter.sv`: Made grant sticky — if the currently granted channel is
+  still requesting, keep granting it rather than rotating to the next
+  requester. Only rotate when the active channel releases its request.
+
+**Verified:** Grant transition log confirms `GRANT` held steady per channel
+for the entire burst duration with no mid-burst switching. 4-channel
+simultaneous test shows clean rotation 0001→0010→0100→1000.
 
 ---
 
-## Future Work
+### Bug 3 — `start` pulse not auto-clearing in register file
 
-* Complete multi-channel DMA operation
-* Burst transfer support
-* Interrupt generation
-* Error handling
-* UVM Verification Environment
-* Functional Coverage
-* Assertion-Based Verification
-* FPGA Implementation
-* Synthesis using OpenLane
+**File:** `reg_file.sv`
+
+**Symptom:** After a transfer completed, the channel FSM would immediately
+restart another transfer without any new CPU write. In simulation, channels
+appeared to loop continuously after being started once.
+
+**Root cause:** The CONTROL register's `start` bit was stored in a standard
+flip-flop that latched the written value and held it. Once written `1`, it
+stayed `1` permanently unless explicitly overwritten. The channel FSM checks
+`start` on every clock cycle in IDLE state, so it would re-trigger immediately
+after returning to IDLE.
+
+**Fix:** Added auto-clear logic — `start` defaults to `'0` every clock cycle
+and is only overridden to `1` on the specific cycle when the CPU writes the
+CONTROL register. This makes `start` a 1-cycle pulse rather than a level
+signal, matching the expected behavior of a write-only trigger bit.
 
 ---
 
+## UVM Challenges and Solutions
 
-## Mistake Log – Shared AXI Master Completion Signal
+### Challenge 1 — UVM library not found (`uvm_macros.svh` missing)
 
-### Issue
+**Problem:** First attempt to run UVM on EDA Playground failed with
+`cannot open include file 'uvm_macros.svh'` and `Package uvm_pkg could
+not be bound`. All UVM macros (`uvm_component_utils`, `uvm_info`, etc.)
+were treated as undefined identifiers, causing cascading parse errors
+across every class file.
 
-After introducing a shared AXI Master through a channel multiplexer, I connected the request path (`fsm_src_addr`, `fsm_dst_addr`, `fsm_length`, `fsm_start`) from the granted channel to the AXI Master but overlooked the completion (`done`) return path.
+**Root cause:** UVM was not enabled in EDA Playground's simulator
+configuration. Without selecting UVM 1.2 from the dropdown, the simulator
+has no knowledge of the UVM package or where the macros header lives.
 
-### Root Cause
+**Fix:** Selected UVM 1.2 under the "UVM/OVM" dropdown in EDA Playground's
+left panel. Also added `-uvmnocdnsextra -uvmhome $UVM_HOME` to compile
+options and moved `import uvm_pkg::*` and `` `include "uvm_macros.svh" ``
+to the very top of the testbench file, before any class definitions.
 
-Originally, the AXI Master was connected only to Channel 0:
+**Lesson:** `import uvm_pkg::*` must precede all class declarations.
+Any class that extends a UVM base class (`uvm_driver`, `uvm_monitor`, etc.)
+needs the package visible at parse time.
 
-```systemverilog
-.done(fsm_done[0])
-```
+---
 
-After adding the channel multiplexer, any of the four channel FSMs could initiate a transfer, but the AXI Master's `done` signal was no longer routed back to the correct FSM.
+### Challenge 2 — Reserved keyword collision in covergroup bin names
 
-As a result, a channel could successfully complete the memory transfer, but its FSM would remain in the `WAIT_DONE` state because `fsm_done` was never asserted.
+**Problem:** Compile error `A "Verilog/SystemVerilog" keyword was found
+where an identifier was expected` on covergroup bin names. The names
+`small` and `medium` were used for length bins.
 
-### Solution
+**Root cause:** `small` and `medium` are reserved keywords in
+SystemVerilog. Using them as bin identifiers caused the parser to fail
+when it encountered them in the covergroup body.
 
-Added logic in `dma_top` to decode the granted channel and route the AXI Master's `done` signal back to the corresponding `fsm_done[i]`.
+**Fix:** Renamed bins to non-reserved names: `len_2_4` and `len_5_8`.
 
-This ensures that only the FSM owning the current transfer receives the completion signal and transitions from `WAIT_DONE` to `COMPLETE`.
+**Lesson:** Avoid common English words as identifiers in SystemVerilog —
+many are reserved. Prefer descriptive technical names with underscores.
 
-### Lesson Learned
+---
 
-When multiple modules share a hardware resource, both the **request path** and the **response/completion path** must be correctly routed. Designing only the forward data path is not sufficient—the return/control path is equally important for correct system behavior.
+### Challenge 3 — Monitor sending X values to scoreboard
 
-Date: 14 July,2026 
-• Added `clk` and `rst_n` ports to `axil_if` and `axi_if`.
-• Updated interface instantiations in the UVM testbench.
-• Reason: The UVM environment uses a virtual interface (`vif`) and synchronizes transactions using `@(posedge vif.clk)`. Since the original interfaces did not contain clock/reset, Cadence reported elaboration errors. Adding these ports enabled proper synchronization between the UVM driver/monitor and the DUT without changing the DMA RTL behavior.
+**Problem:** Scoreboard received transactions with `src=0xxxxxxxxx
+dst=0xxxxxxxxx len=x` — all fields uninitialized despite the driver
+clearly sending valid data.
 
-EDA playground link- working of rtl and testbenchh : https://www.edaplayground.com/x/Dwaa
+**Root cause:** The monitor only watched for the CONTROL register write
+(the transfer trigger at offset 0x0C) but created a brand new empty
+`dma_seq_item` and only set `channel_sel`. The `src_addr`, `dst_addr`,
+and `length` fields came from the three earlier writes (offsets 0x00,
+0x04, 0x08) which the monitor ignored. Since `logic` fields default to X
+in SystemVerilog, the scoreboard received incomplete transactions.
+
+**Fix:** Added per-channel capture buffers (`cap_src[4]`, `cap_dst[4]`,
+`cap_len[4]`) inside the monitor's `run_phase`. The monitor now watches
+every AXI4-Lite write transaction and stores values by channel index using
+`addr[5:4]` to decode the channel and `addr[3:0]` to decode the register
+offset. Only when a CONTROL write is seen does it create and send the
+complete transaction using the previously captured values.
+
+**Lesson:** A monitor must observe the full protocol sequence, not just
+the final trigger. In register-based protocols, all prerequisite writes
+must be captured before the stimulus transaction can be reconstructed.
+
+---
+
+### Challenge 4 — Functional coverage showing 0.0% despite sampling
+
+**Problem:** Covergroup `dma_cg` consistently reported 0.0% coverage
+despite the `write()` function being called 20 times with valid data.
+Xcelium printed: `Sampling of covergroup type "dma_coverage::dma_cg" is
+not enabled`.
+
+**Root cause:** Xcelium requires explicit coverage instrumentation to be
+enabled at compile time. Without the `-coverage all` flag, covergroups
+inside dynamically-created UVM objects (classes) are not instrumented
+during compilation and calls to `sample()` silently do nothing.
+
+Additionally, the initial covergroup implementation referenced `item`
+(a class handle) directly in coverpoint expressions. Since `item` is null
+at covergroup construction time, Xcelium could not resolve the coverpoint
+variables.
+
+**Fix (two-part):**
+1. Added `-coverage all` to EDA Playground's compile options. This
+   instructs Xcelium to instrument all covergroups for sampling.
+2. Replaced direct `item.field` references in coverpoints with
+   class-level `int unsigned` variables (`cov_channel`, `cov_length`)
+   that are updated before `dma_cg.sample()` is called. Using `int`
+   instead of `logic` ensures Xcelium can track the variables across
+   clock boundaries in a coverage context.
+
+**Result:** Coverage immediately jumped from 0.0% to 91.7% on the next
+run with no other code changes.
+
+**Lesson:** In Xcelium, coverage collection is opt-in at compile time.
+`logic` type variables can cause silent coverage failures inside
+dynamically-instantiated UVM objects — prefer `int unsigned` for
+covergroup sample variables.
+
+---
+
+### Challenge 5 — `fork/join` missing `done` pulses in 4-channel test
+
+**Problem:** The 4-channel simultaneous test's `fork/join` block hung
+indefinitely waiting for `@(posedge dut.done[0])` and
+`@(posedge dut.done[1])`. The testbench never printed `ALL 4 CHANNEL
+TEST PASSED` and eventually hit the timeout watchdog.
+
+**Root cause:** `done` is a 1-cycle pulse signal asserted for exactly one
+clock cycle when a channel FSM transitions through its COMPLETE state.
+Because channels 0 and 1 were configured and started first (AXI4-Lite
+writes are sequential — each `axil_write` takes multiple clock cycles),
+they had already completed their transfers and their `done` pulses had
+come and gone by the time all 4 channels were configured and the `fork`
+block started executing. The `@(posedge dut.done[0])` edge-sensitive wait
+could never trigger on an event that already happened in the past.
+
+**Fix:** Replaced the `fork/join` with a polling loop checking
+`dut.busy != 4'b0000 || dut.ch_req != 4'b0000` every clock cycle.
+`busy` is a level signal that stays high for the entire duration of a
+transfer — polling it is immune to pulse timing. Also restructured the
+test to configure all addresses first, then start all channels, so
+the gap between first and last channel start is minimized.
+
+**Lesson:** Never use edge-sensitive waits (`@posedge signal`) for
+completion detection of signals that may pulse before the waiter is set
+up. Use level-sensitive polling or sticky latching flags instead.
+
+---
+
+## Tools
+
+- SystemVerilog / UVM 1.2
+- Cadence Xcelium 25.03 via EDA Playground
+- Git / GitHub
+
+---
+
 ## Author
 
-
 Anshu
-
-ECE | RTL Design & Verification | VLSI Enthusiast
+ECE, Thapar Institute of Engineering & Technology
+Target: RTL Design / Verification Engineer | VLSI | Semiconductor
