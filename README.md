@@ -324,7 +324,7 @@ up. Use level-sensitive polling or sticky latching flags instead.
 ## Tools
 
 - SystemVerilog / UVM 1.2
-- Cadence Xcelium 25.03 via EDA Playground
+- Cadence Xcelium 25.03 via EDA Playground- https://www.edaplayground.com/x/a53r
 - Git / GitHub
 
 ---

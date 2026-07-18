@@ -251,4 +251,84 @@ module dma_top #(
               fsm_done[active_ch] = 1'b1;
 
       end
+
+        // ============================================================
+// SystemVerilog Assertions (SVA)
+// Added at bottom of dma_top.sv, before endmodule
+// ============================================================
+
+// ----------------------------------------------------------
+// Assertion 1: Arbiter never grants more than one channel
+// at the same time (one-hot check)
+// Why: if two channels get granted simultaneously, both FSMs
+// will try to drive the shared AXI master — undefined behavior
+// ----------------------------------------------------------
+property p_onehot_grant;
+    @(posedge clk) disable iff (!rst_n)
+    $onehot0(ch_grant);
+endproperty
+
+a_onehot_grant: assert property (p_onehot_grant)
+else $error("[SVA FAIL] a_onehot_grant: multiple channels granted at time %0t", $time);
+
+
+// ----------------------------------------------------------
+// Assertion 2: AXI master start only fires when a grant
+// is active — no spurious transfers
+// Why: axi_start without ch_grant means channel_mux is
+// routing garbage addresses to the AXI master
+// ----------------------------------------------------------
+property p_start_needs_grant;
+    @(posedge clk) disable iff (!rst_n)
+    axi_start |-> |ch_grant;
+endproperty
+
+a_start_needs_grant: assert property (p_start_needs_grant)
+else $error("[SVA FAIL] a_start_needs_grant: axi_start high with no active grant at time %0t", $time);
+
+
+// ----------------------------------------------------------
+// Assertion 3: axi_done is a 1-cycle pulse only
+// Why: if done stays high for 2+ cycles, the active channel
+// FSM could see it twice and double-complete, or the
+// wrong channel could catch the second cycle
+// ----------------------------------------------------------
+property p_done_single_cycle;
+    @(posedge clk) disable iff (!rst_n)
+    axi_done |=> !axi_done;
+endproperty
+
+a_done_single_cycle: assert property (p_done_single_cycle)
+else $error("[SVA FAIL] a_done_single_cycle: axi_done held high >1 cycle at time %0t", $time);
+
+
+// ----------------------------------------------------------
+// Assertion 4: A channel that is busy must have valid
+// src and dst addresses (not zero simultaneously)
+// Why: a transfer with src=0 and dst=0 would overwrite
+// the base of memory with itself — likely a config error
+// ----------------------------------------------------------
+property p_valid_transfer_addr;
+    @(posedge clk) disable iff (!rst_n)
+    // for each channel: if busy, src and dst can't both be 0
+    // checking channel 0 as example — extend per channel
+    busy[0] |-> !(src_addr[0] == 32'h0 && dst_addr[0] == 32'h0);
+endproperty
+
+a_valid_transfer_addr: assert property (p_valid_transfer_addr)
+else $error("[SVA FAIL] a_valid_transfer_addr: ch0 busy with src=0 and dst=0 at time %0t", $time);
+
+
+// ----------------------------------------------------------
+// Assertion 5: Once granted, a channel must stay busy
+// until it gets done — grant should not be held while
+// the channel is not busy (would mean idle channel holds bus)
+// ----------------------------------------------------------
+property p_grant_implies_busy;
+    @(posedge clk) disable iff (!rst_n)
+    |ch_grant |-> |busy;
+endproperty
+
+a_grant_implies_busy: assert property (p_grant_implies_busy)
+else $error("[SVA FAIL] a_grant_implies_busy: grant active but no channel busy at time %0t", $time);
 endmodule
