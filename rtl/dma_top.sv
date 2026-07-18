@@ -331,4 +331,6 @@ endproperty
 
 a_grant_implies_busy: assert property (p_grant_implies_busy)
 else $error("[SVA FAIL] a_grant_implies_busy: grant active but no channel busy at time %0t", $time);
+
+
 endmodule
